@@ -1,0 +1,633 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body><title>コーラくじ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 屋台の看板。上にタブ、くじ画面は大きなタップ用チップ＋1つの大ボタン、設定画面は表と帯グラフ */
+:root{
+  --cola:#1d110b;        /* 背景：コーラの濃い茶 */
+  --cola-2:#2a1a11;      /* 面 */
+  --cola-3:#3a2618;      /* 境界・入力 */
+  --foam:#fff4e2;        /* 文字：泡の白 */
+  --foam-dim:#cdb79c;    /* 補助文字 */
+  --fizz:#ffcf3f;        /* アクセント：はじける黄 */
+  --cap:#e5383b;         /* 王冠の赤（A賞） */
+  --snack:#4cc38a;       /* お菓子（B賞） */
+  --font-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --font-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--cola);color:var(--foam);font-family:var(--font-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px}
+.wrap{max-width:880px;margin:0 auto}
+h1,h2,h3{font-family:var(--font-display);font-weight:400;text-wrap:balance;margin:0;letter-spacing:.02em}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--fizz);outline-offset:2px}
+
+/* ヘッダー */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:16px 12px}
+.brand{display:flex;align-items:center;gap:10px}
+.capicon{width:40px;height:40px;flex:none}
+.brand h1{font-size:1.5rem}
+.brand small{display:block;color:var(--foam-dim);font-size:.75rem;font-family:var(--font-body);letter-spacing:.08em}
+.tabs{display:flex;gap:4px;background:var(--cola-2);border-radius:999px;padding:4px}
+.tabs button{border:0;background:transparent;padding:8px 16px;border-radius:999px;font-weight:700;color:var(--foam-dim)}
+.tabs button[aria-selected="true"]{background:var(--foam);color:var(--cola)}
+
+/* くじ画面 */
+.hero{padding-block:8px 20px}
+.hero h2{font-size:clamp(1.6rem,6vw,2.6rem);line-height:1.25}
+.hero h2 em{font-style:normal;color:var(--fizz)}
+.hero p{margin:.5em 0 0;color:var(--foam-dim)}
+.q{border-top:1px dashed var(--cola-3);padding-block:16px;display:grid;gap:10px}
+.q-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.q-head h3{font-size:1.1rem}
+.q-head span{font-size:.8rem;color:var(--foam-dim)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:2px solid var(--cola-3);background:var(--cola-2);border-radius:12px;padding:10px 16px;min-width:72px;font-weight:700;font-size:1.05rem}
+.chip[aria-pressed="true"]{border-color:var(--fizz);background:var(--fizz);color:var(--cola)}
+.chance{display:flex;align-items:center;gap:12px;margin-block:16px 12px;flex-wrap:wrap}
+.meter{display:flex;gap:6px}
+.meter i{width:28px;height:28px;border-radius:50%;border:2px dashed var(--cola-3);display:grid;place-items:center;font-style:normal;font-size:.8rem;color:var(--cola-3)}
+.meter i.on{border:2px solid var(--fizz);background:var(--fizz);color:var(--cola)}
+.chance p{margin:0;font-weight:700}
+.chance p b{color:var(--fizz)}
+.draw{width:100%;border:0;border-radius:20px;padding:22px 16px;background:var(--cap);color:#fff;font-family:var(--font-display);font-size:clamp(1.5rem,6vw,2.2rem);
+  box-shadow:0 6px 0 #8f1c1f;transition:transform .08s,box-shadow .08s}
+.draw:active{transform:translateY(4px);box-shadow:0 2px 0 #8f1c1f}
+.today{margin-top:14px;color:var(--foam-dim);font-size:.85rem;text-align:right;font-variant-numeric:tabular-nums}
+
+/* 抽選中・結果オーバーレイ */
+.overlay{position:fixed;inset:0;z-index:20;background:var(--cola);display:grid;place-items:center;overflow:hidden;
+  padding:calc(24px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bubbles{position:absolute;inset:0;pointer-events:none}
+.bubbles span{position:absolute;bottom:-40px;border-radius:50%;border:2px solid rgba(255,244,226,.55);background:rgba(255,244,226,.08);animation:rise linear infinite}
+@keyframes rise{to{transform:translateY(-115vh)}}
+.drawing{position:relative;text-align:center;display:grid;gap:16px;justify-items:center}
+.drawing .capicon{width:120px;height:120px;animation:shake .35s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(10deg)}}
+.drawing h2{font-size:clamp(2rem,9vw,3.4rem)}
+.count{font-family:var(--font-display);font-size:1.4rem;color:var(--fizz);font-variant-numeric:tabular-nums}
+.result{position:relative;text-align:center;display:grid;gap:14px;justify-items:center;max-width:520px;animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.6);opacity:.2}to{transform:scale(1);opacity:1}}
+.result .tag{font-family:var(--font-display);font-size:1.1rem;padding:4px 16px;border-radius:999px;background:var(--foam);color:var(--cola)}
+.result h2{font-size:clamp(2.4rem,11vw,4.2rem);line-height:1.15}
+.result p{margin:0;font-size:1.15rem;color:var(--foam-dim)}
+.result.a h2{color:var(--cap)} .result.a .tag{background:var(--cap);color:#fff}
+.result.b h2{color:var(--snack)} .result.b .tag{background:var(--snack);color:var(--cola)}
+.result .staff{font-size:.85rem;border:1px dashed var(--cola-3);border-radius:10px;padding:6px 12px;font-variant-numeric:tabular-nums}
+.next{border:2px solid var(--foam);background:transparent;border-radius:14px;padding:12px 28px;font-weight:700;font-size:1.1rem;margin-top:8px}
+@media (prefers-reduced-motion:reduce){.bubbles{display:none}.drawing .capicon,.result{animation:none}}
+
+/* 設定画面 */
+.lock{max-width:360px;margin:40px auto;display:grid;gap:12px;text-align:center}
+.lock input{text-align:center;font-size:1.6rem;letter-spacing:.4em;padding:10px;border-radius:12px;border:2px solid var(--cola-3);background:var(--cola-2)}
+.btn{border:0;border-radius:12px;padding:10px 18px;font-weight:700;background:var(--foam);color:var(--cola)}
+.btn.ghost{background:transparent;border:2px solid var(--cola-3);color:var(--foam)}
+.btn.danger{background:var(--cap);color:#fff}
+.err{color:var(--cap);font-weight:700;min-height:1.5em;margin:0}
+section.panel{border-top:1px dashed var(--cola-3);padding-block:20px;display:grid;gap:14px}
+section.panel h2{font-size:1.3rem}
+.note{color:var(--foam-dim);font-size:.88rem;margin:0}
+.base{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.field{background:var(--cola-2);border-radius:14px;padding:14px;display:grid;gap:6px}
+.field label{font-weight:700}
+.field .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+input.num{width:96px;padding:8px 10px;border-radius:10px;border:2px solid var(--cola-3);background:var(--cola);font-variant-numeric:tabular-nums;text-align:right}
+input.num.bad{border-color:var(--cap)}
+.pct{font-variant-numeric:tabular-nums;color:var(--foam-dim);font-size:.9rem}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--cola-3);text-align:left;white-space:nowrap}
+th{font-size:.8rem;color:var(--foam-dim);font-weight:500}
+td.grp{font-weight:700;color:var(--fizz)}
+.sim{background:var(--cola-2);border-radius:14px;padding:14px;display:grid;gap:12px}
+.sim .sels{display:flex;flex-wrap:wrap;gap:8px}
+.sim select{padding:8px;border-radius:10px;border:2px solid var(--cola-3);background:var(--cola)}
+.bar{display:flex;height:36px;border-radius:10px;overflow:hidden;font-size:.8rem;font-weight:700}
+.bar div{display:grid;place-items:center;min-width:0;overflow:hidden;white-space:nowrap}
+.scale{display:flex;justify-content:space-between;font-size:.75rem;color:var(--foam-dim);font-variant-numeric:tabular-nums}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.stat{background:var(--cola-2);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums}
+.stat b{font-family:var(--font-display);font-weight:400;font-size:1.3rem;margin-left:6px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--foam);color:var(--cola);padding:10px 18px;border-radius:999px;font-weight:700;z-index:30;max-width:calc(100% - 32px)}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="cap" viewBox="0 0 100 100">
+    <path d="M50 4 l7 9 11-4 3 11 12 1-2 12 10 7-6 10 6 10-10 7 2 12-12 1-3 11-11-4-7 9-7-9-11 4-3-11-12-1 2-12-10-7 6-10-6-10 10-7-2-12 12-1 3-11 11 4z" fill="#e5383b"/>
+    <circle cx="50" cy="50" r="30" fill="#c42a2d"/>
+    <text x="50" y="60" text-anchor="middle" font-size="28" font-weight="700" fill="#fff4e2" font-family="sans-serif">くじ</text>
+  </symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="capicon" aria-hidden="true"><use href="#cap"/></svg>
+      <h1>コーラくじ<small>1本買うと1回ひけます</small></h1>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button id="tab-play" role="tab" aria-selected="true">くじ引き</button>
+      <button id="tab-admin" role="tab" aria-selected="false">設定</button>
+    </nav>
+  </header>
+
+  <!-- くじ引き画面 -->
+  <main id="view-play">
+    <div class="hero">
+      <h2>アンケートに答えると<br><em>当たりやすく</em>なるよ！</h2>
+      <p>答えたくない項目はそのままでOK。もう一度タップすると選択を外せます。</p>
+    </div>
+    <div id="questions"></div>
+    <div class="chance">
+      <div class="meter" id="meter" aria-hidden="true"></div>
+      <p id="chanceText">チャンスアップ <b>0</b> / 3</p>
+    </div>
+    <button class="draw" id="drawBtn">くじを引く！</button>
+    <div class="today" id="today"></div>
+  </main>
+
+  <!-- 設定画面 -->
+  <main id="view-admin" hidden>
+    <div class="lock" id="lockForm">
+      <h2>スタッフ用</h2>
+      <p class="note">設定画面の暗証番号を入力してください（初期値 1234）</p>
+      <input id="pinInput" type="text" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12" aria-label="暗証番号" style="-webkit-text-security:disc">
+      <p class="err" id="pinErr"></p>
+      <button class="btn" type="button" id="pinOpen">ひらく</button>
+    </div>
+
+    <div id="adminBody" hidden>
+      <section class="panel">
+        <h2>基本の当選ライン</h2>
+        <p class="note">ボタンを押すたびに 0〜1 の乱数を1つ発生させます。乱数が A賞ライン以上なら A賞、B賞ライン以上なら B賞、それ以外はハズレです。A賞ラインは B賞ラインより大きくしてください。</p>
+        <div class="base">
+          <div class="field">
+            <label for="baseA"><span class="dot" style="background:var(--cap)"></span>A賞：コーラもう1本</label>
+            <div class="row"><input class="num" id="baseA" type="number" step="0.01" min="0" max="1"><span class="pct" id="baseAPct"></span></div>
+          </div>
+          <div class="field">
+            <label for="baseB"><span class="dot" style="background:var(--snack)"></span>B賞：お菓子</label>
+            <div class="row"><input class="num" id="baseB" type="number" step="0.01" min="0" max="1"><span class="pct" id="baseBPct"></span></div>
+          </div>
+        </div>
+        <p class="err" id="baseErr"></p>
+      </section>
+
+      <section class="panel">
+        <h2>アンケート回答による確率アップ</h2>
+        <p class="note">回答した選択肢の値を、当選ラインから引きます。数字が大きいほど当たりやすくなります（例：高校生 A賞 0.10 → ライン 0.95 が 0.85 に）。未回答の項目は引きません。</p>
+        <div class="scroll"><table>
+          <thead><tr><th>項目</th><th>選択肢</th><th>A賞から引く</th><th>B賞から引く</th></tr></thead>
+          <tbody id="bonusBody"></tbody>
+        </table></div>
+      </section>
+
+      <section class="panel">
+        <h2>確率の確認</h2>
+        <p class="note">回答の組み合わせを選ぶと、実際の当選確率が分かります。</p>
+        <div class="sim">
+          <div class="sels" id="simSels"></div>
+          <div class="bar" id="simBar"></div>
+          <div class="scale"><span>0</span><span>乱数</span><span>1</span></div>
+          <p class="note" id="simText"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>ログ</h2>
+        <div class="stats" id="stats"></div>
+        <div class="actions">
+          <button class="btn" id="dlBtn">CSVをダウンロード</button>
+          <button class="btn ghost" id="clearBtn">ログを消去</button>
+          <button class="btn danger" id="clearConfirm" hidden>本当に消去する</button>
+        </div>
+        <p class="note">ログはこの端末のブラウザに保存されます。下で保存先フォルダを指定すると、くじを引くたびにCSVを自動保存します。</p>
+        <div class="field">
+          <label>自動保存先フォルダ</label>
+          <p class="note" id="dirStatus">未設定</p>
+          <div class="actions">
+            <button class="btn" id="dirPick">保存先フォルダを選ぶ</button>
+            <button class="btn ghost" id="dirResume" hidden>保存を再開する</button>
+            <button class="btn ghost" id="dirClear" hidden>指定を解除</button>
+          </div>
+          <p class="note">USBメモリやGoogleドライブ・OneDriveの同期フォルダを選ぶと、そのままバックアップになります。ファイル名は colakuji_log.csv です。ChromeまたはEdgeで使えます。</p>
+        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>No</th><th>時刻</th><th>性別</th><th>年代</th><th>来場区分</th><th>乱数</th><th>Aライン</th><th>Bライン</th><th>結果</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table></div>
+      </section>
+
+      <section class="panel">
+        <h2>効果音</h2>
+        <p class="note">抽選中はドラムロール、結果が出るとシンバルと賞ごとのジングルが鳴ります。音量はPC本体の音量と合わせて調整してください。</p>
+        <div class="actions">
+          <label class="actions" for="soundOn" style="font-weight:700"><input type="checkbox" id="soundOn" style="width:22px;height:22px"> 音を鳴らす</label>
+          <label for="soundVol" class="note">音量</label>
+          <input type="range" id="soundVol" min="0" max="1" step="0.05" style="width:160px;max-width:100%">
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="testA">A賞の音を試す</button>
+          <button class="btn ghost" id="testB">B賞の音を試す</button>
+          <button class="btn ghost" id="testN">ハズレの音を試す</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>暗証番号の変更</h2>
+        <div class="actions">
+          <input class="num" id="newPin" type="password" inputmode="numeric" maxlength="8" style="width:140px;text-align:left" aria-label="新しい暗証番号">
+          <button class="btn ghost" id="pinSave">変更する</button>
+        </div>
+        <div class="actions"><button class="btn ghost" id="resetSettings">設定を初期値に戻す</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="bubbles" id="bubbles"></div>
+  <div class="drawing" id="drawing">
+    <svg class="capicon" aria-hidden="true"><use href="#cap"/></svg>
+    <h2>抽選中…</h2>
+    <div class="count" id="count">3</div>
+  </div>
+  <div class="result" id="result" hidden></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  // ---------- 定義 ----------
+  const QUESTIONS = [
+    {key:"gender", label:"性別", options:["男性","女性","その他"]},
+    {key:"age", label:"年代", options:["10歳未満","10代","20代","30代","40代","50代","60代","70代以上"]},
+    {key:"party", label:"来場区分", options:["武蔵大学生","他大学生","武蔵大学生保護者","高校生","高校生保護者","その他・一般"]}
+  ];
+  const DEFAULTS = {
+    baseA:0.95, baseB:0.80, pin:"1234", sound:{on:true,vol:0.8},
+    bonus:{
+      gender:{"男性":[0.01,0.03],"女性":[0.01,0.03],"その他":[0.01,0.03]},
+      age:{"10歳未満":[0.01,0.03],"10代":[0.01,0.03],"20代":[0.01,0.03],"30代":[0.01,0.03],"40代":[0.01,0.03],"50代":[0.01,0.03],"60代":[0.01,0.03],"70代以上":[0.01,0.03]},
+      party:{"武蔵大学生":[0.01,0.03],"他大学生":[0.01,0.03],"武蔵大学生保護者":[0.01,0.03],"高校生":[0.01,0.03],"高校生保護者":[0.01,0.03],"その他・一般":[0.01,0.03]}
+    }
+  };
+  const PRIZE = {
+    A:{cls:"a",tag:"A賞",title:"大当たり！",sub:"コーラをもう1本どうぞ！",label:"A賞(コーラ)"},
+    B:{cls:"b",tag:"B賞",title:"当たり！",sub:"お菓子をプレゼント！",label:"B賞(お菓子)"},
+    N:{cls:"n",tag:"ハズレ",title:"ざんねん…",sub:"買ってくれてありがとう！",label:"ハズレ"}
+  };
+  const SKEY="colaKuji.settings.v1", LKEY="colaKuji.log.v1";
+
+  // ---------- 保存 ----------
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  function load(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
+  function store(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}}
+  let S=Object.assign(clone(DEFAULTS),load(SKEY,{}));
+  if(!/^\d{4,8}$/.test(String(S.pin||"").normalize("NFKC")))S.pin=DEFAULTS.pin;
+  QUESTIONS.forEach(q=>{S.bonus[q.key]=Object.assign({},DEFAULTS.bonus[q.key],S.bonus[q.key]||{})});
+  S.sound=Object.assign({},DEFAULTS.sound,S.sound||{});
+  let LOG=load(LKEY,[]);
+  let storageOk=store(SKEY,S);
+
+  // ---------- 確率計算 ----------
+  const clamp=v=>Math.min(1,Math.max(0,v));
+  const round=v=>Math.round(v*10000)/10000;
+  function lines(ans){
+    let a=S.baseA,b=S.baseB;
+    QUESTIONS.forEach(q=>{const v=ans[q.key];if(v&&S.bonus[q.key][v]){a-=S.bonus[q.key][v][0];b-=S.bonus[q.key][v][1]}});
+    a=clamp(round(a));b=clamp(round(b));
+    if(b>a)b=a; // B賞はA賞ラインの下の区間
+    return {a,b,pA:round(1-a),pB:round(a-b)};
+  }
+  function rand(){
+    try{return crypto.getRandomValues(new Uint32Array(1))[0]/4294967296}catch(e){return Math.random()}
+  }
+
+  // ---------- 効果音（Web Audioで合成、音声ファイル不要） ----------
+  let AC=null,noiseBuf=null;
+  function ac(){
+    try{
+      if(!AC){
+        const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+        AC=new C();
+        const len=AC.sampleRate*2;noiseBuf=AC.createBuffer(1,len,AC.sampleRate);
+        const d=noiseBuf.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+      }
+      if(AC.state==="suspended")AC.resume();
+      return AC;
+    }catch(e){return null}
+  }
+  function master(){const g=AC.createGain();g.gain.value=S.sound.vol;g.connect(AC.destination);return g}
+  function noise(out,t,gain,dur,type,freq,q){
+    const s=AC.createBufferSource();s.buffer=noiseBuf;
+    const f=AC.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q;
+    const g=AC.createGain();g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    s.connect(f);f.connect(g);g.connect(out);s.start(t,Math.random()*1.5);s.stop(t+dur+0.05);
+  }
+  function tone(out,t,freq,gain,dur,type){
+    const o=AC.createOscillator();o.type=type||"square";o.frequency.setValueAtTime(freq,t);
+    const g=AC.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(out);o.start(t);o.stop(t+dur+0.05);
+  }
+  // スネアのロール：だんだん速く・大きく
+  function drumroll(sec){
+    if(!S.sound.on||!ac())return;
+    const out=master(),t0=AC.currentTime+0.03;let t=t0,i=0;
+    while(t<t0+sec-0.08){
+      const p=(t-t0)/sec,g=0.12+0.6*p*p;
+      noise(out,t,g*(i%2?0.75:1),0.08,"bandpass",1900,0.7);
+      if(i%2===0)tone(out,t,190,0.1*g+0.02,0.05,"triangle");
+      t+=0.055-0.02*p;i++;
+    }
+    // 最後の「ドン！」
+    noise(out,t0+sec,0.9,0.25,"bandpass",1500,0.5);
+    tone(out,t0+sec,80,0.7,0.45,"sine");
+  }
+  function resultSound(res){
+    if(!S.sound.on||!ac())return;
+    const out=master(),t=AC.currentTime+0.05;
+    if(res==="A"){
+      noise(out,t,0.45,1.8,"highpass",6000,0.5);
+      [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(out,t+i*0.12,f,0.12,0.16,"square"));
+      [523.25,659.25,783.99,1046.5].forEach(f=>tone(out,t+0.55,f,0.07,1.2,"square"));
+    }else if(res==="B"){
+      noise(out,t,0.25,1.0,"highpass",7000,0.5);
+      [1046.5,1318.5,1568].forEach((f,i)=>tone(out,t+i*0.14,f,0.3,0.7,"triangle"));
+    }else{
+      [392,370,349.2].forEach((f,i)=>tone(out,t+i*0.38,f,0.28,0.36,"triangle"));
+      tone(out,t+1.14,329.6,0.28,1.0,"triangle");
+    }
+  }
+
+  // ---------- くじ画面 ----------
+  const answers={gender:"",age:"",party:""};
+  const $=id=>document.getElementById(id);
+  function buildQuestions(){
+    $("questions").innerHTML="";
+    QUESTIONS.forEach(q=>{
+      const box=document.createElement("div");box.className="q";
+      box.innerHTML=`<div class="q-head"><h3>${q.label}</h3><span>答えるとチャンスアップ</span></div><div class="chips"></div>`;
+      const chips=box.querySelector(".chips");
+      q.options.forEach(o=>{
+        const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=o;
+        b.setAttribute("aria-pressed","false");
+        b.onclick=()=>{answers[q.key]=answers[q.key]===o?"":o;renderChips()};
+        b.dataset.q=q.key;b.dataset.o=o;chips.appendChild(b);
+      });
+      $("questions").appendChild(box);
+    });
+    renderChips();
+  }
+  function renderChips(){
+    document.querySelectorAll(".chip").forEach(b=>b.setAttribute("aria-pressed",String(answers[b.dataset.q]===b.dataset.o)));
+    const n=QUESTIONS.filter(q=>answers[q.key]).length;
+    $("meter").innerHTML=QUESTIONS.map((q,i)=>`<i class="${i<n?"on":""}">${i<n?"★":""}</i>`).join("");
+    $("chanceText").innerHTML=`チャンスアップ <b>${n}</b> / 3`;
+  }
+  function renderToday(){
+    const d=new Date().toDateString();
+    const t=LOG.filter(r=>new Date(r.time).toDateString()===d);
+    $("today").textContent=`本日の抽選 ${t.length}回`;
+  }
+
+  let busy=false;
+  $("drawBtn").onclick=()=>{
+    if(busy)return;busy=true;
+    const ans=Object.assign({},answers);
+    const L=lines(ans), r=rand();
+    const res=r>=L.a?"A":(r>=L.b?"B":"N");
+    const rec={no:(LOG.length?LOG[LOG.length-1].no:0)+1,time:new Date().toISOString(),
+      gender:ans.gender,age:ans.age,party:ans.party,answered:QUESTIONS.filter(q=>ans[q.key]).length,
+      rand:round(r),lineA:L.a,lineB:L.b,probA:L.pA,probB:L.pB,baseA:S.baseA,baseB:S.baseB,result:res};
+    LOG.push(rec);
+    if(!store(LKEY,LOG))toast("ログを保存できませんでした。CSVを保存してください");
+    autoSave();
+    drumroll(3);
+    showDrawing(rec);
+  };
+
+  function showDrawing(rec){
+    const ov=$("overlay"),bub=$("bubbles");
+    bub.innerHTML="";
+    for(let i=0;i<26;i++){
+      const s=document.createElement("span"),z=8+Math.random()*30;
+      s.style.cssText=`left:${Math.random()*100}%;width:${z}px;height:${z}px;animation-duration:${1.6+Math.random()*2.4}s;animation-delay:${-Math.random()*3}s`;
+      bub.appendChild(s);
+    }
+    $("drawing").hidden=false;$("result").hidden=true;ov.hidden=false;
+    let c=3;$("count").textContent=c;
+    const t=setInterval(()=>{c--;if(c>0)$("count").textContent=c;else{clearInterval(t);showResult(rec)}},1000);
+  }
+  function showResult(rec){
+    const p=PRIZE[rec.result],el=$("result");
+    el.className="result "+p.cls;
+    const time=new Date(rec.time).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+    el.innerHTML=`<span class="tag">${p.tag}</span><h2>${p.title}</h2><p>${p.sub}</p>
+      <span class="staff">No.${rec.no}　${time}</span>
+      <button class="next" id="nextBtn" type="button">次の人へ</button>`;
+    $("drawing").hidden=true;el.hidden=false;
+    resultSound(rec.result);
+    if(rec.result==="N")$("bubbles").innerHTML="";
+    $("nextBtn").onclick=closeOverlay;$("nextBtn").focus();
+  }
+  function closeOverlay(){
+    $("overlay").hidden=true;$("bubbles").innerHTML="";
+    answers.gender=answers.age=answers.party="";renderChips();renderToday();busy=false;
+  }
+
+  // ---------- タブ ----------
+  function show(v){
+    const admin=v==="admin";
+    $("view-play").hidden=admin;$("view-admin").hidden=!admin;
+    $("tab-play").setAttribute("aria-selected",String(!admin));$("tab-admin").setAttribute("aria-selected",String(admin));
+    if(admin){$("lockForm").hidden=false;$("adminBody").hidden=true;$("pinInput").value="";$("pinErr").textContent="";$("pinInput").focus()}
+    else{renderToday()}
+  }
+  $("tab-play").onclick=()=>show("play");
+  $("tab-admin").onclick=()=>show("admin");
+  // 全角数字・空白を吸収して比較
+  const normPin=v=>String(v||"").normalize("NFKC").replace(/\s/g,"");
+  function tryUnlock(){
+    const v=normPin($("pinInput").value);
+    if(!v){$("pinErr").textContent="暗証番号を入力してください";return}
+    if(v===normPin(S.pin)){$("lockForm").hidden=true;$("adminBody").hidden=false;renderAdmin()}
+    else{$("pinErr").textContent="暗証番号がちがいます（半角・全角どちらでも可）";$("pinInput").select()}
+  }
+  $("pinOpen").addEventListener("click",tryUnlock);
+  $("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();tryUnlock()}});
+
+  // ---------- 設定画面 ----------
+  function saveSettings(){storageOk=store(SKEY,S);if(!storageOk)toast("この端末では設定を保存できません")}
+  const pct=v=>(v*100).toFixed(1)+"%";
+  function renderBase(){
+    $("baseA").value=S.baseA;$("baseB").value=S.baseB;
+    const L=lines({});
+    $("baseAPct").textContent=`当選確率 ${pct(L.pA)}`;
+    $("baseBPct").textContent=`当選確率 ${pct(L.pB)}`;
+    $("baseErr").textContent=S.baseB>S.baseA?"B賞ラインがA賞ラインより大きいため、B賞は当たりません":"";
+  }
+  function bindBase(id,key){
+    $(id).addEventListener("input",e=>{
+      const v=parseFloat(e.target.value);
+      const ok=!isNaN(v)&&v>=0&&v<=1;e.target.classList.toggle("bad",!ok);
+      if(ok){S[key]=v;saveSettings();renderBase();renderSim();}
+    });
+  }
+  bindBase("baseA","baseA");bindBase("baseB","baseB");
+
+  function renderBonus(){
+    const tb=$("bonusBody");tb.innerHTML="";
+    QUESTIONS.forEach(q=>q.options.forEach((o,i)=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td class="grp">${i===0?q.label:""}</td><td>${o}</td>`;
+      [0,1].forEach(k=>{
+        const td=document.createElement("td"),inp=document.createElement("input");
+        inp.className="num";inp.type="number";inp.step="0.01";inp.min="0";inp.max="1";
+        inp.id=`bonus-${q.key}-${i}-${k}`;inp.value=S.bonus[q.key][o][k];
+        inp.setAttribute("aria-label",`${q.label} ${o} ${k?"B賞":"A賞"}から引く値`);
+        inp.addEventListener("input",()=>{
+          const v=parseFloat(inp.value),ok=!isNaN(v)&&v>=0&&v<=1;inp.classList.toggle("bad",!ok);
+          if(ok){S.bonus[q.key][o][k]=v;saveSettings();renderBase();renderSim()}
+        });
+        td.appendChild(inp);tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    }));
+  }
+
+  const sim={gender:"",age:"",party:""};
+  function renderSimSels(){
+    const box=$("simSels");box.innerHTML="";
+    QUESTIONS.forEach(q=>{
+      const s=document.createElement("select");s.id="sim-"+q.key;s.setAttribute("aria-label",q.label);
+      s.innerHTML=`<option value="">${q.label}：未回答</option>`+q.options.map(o=>`<option${sim[q.key]===o?" selected":""}>${o}</option>`).join("");
+      s.onchange=()=>{sim[q.key]=s.value;renderSim()};box.appendChild(s);
+    });
+  }
+  function renderSim(){
+    const L=lines(sim),pN=L.b;
+    const seg=(w,bg,fg,t)=>w>0?`<div style="flex:${w};background:${bg};color:${fg}">${w>=0.08?t:""}</div>`:"";
+    $("simBar").innerHTML=seg(pN,"var(--cola-3)","var(--foam-dim)","ハズレ")+seg(L.pB,"var(--snack)","var(--cola)","B賞")+seg(L.pA,"var(--cap)","#fff","A賞");
+    $("simText").textContent=`Aライン ${L.a.toFixed(2)}／Bライン ${L.b.toFixed(2)} → A賞 ${pct(L.pA)}、B賞 ${pct(L.pB)}、ハズレ ${pct(pN)}`;
+  }
+
+  function renderLog(){
+    const c={A:0,B:0,N:0};LOG.forEach(r=>c[r.result]++);
+    const ans=LOG.filter(r=>r.answered>0).length;
+    $("stats").innerHTML=`<span class="stat">抽選<b>${LOG.length}</b></span><span class="stat">A賞<b>${c.A}</b></span><span class="stat">B賞<b>${c.B}</b></span><span class="stat">ハズレ<b>${c.N}</b></span><span class="stat">アンケート回答あり<b>${ans}</b></span>`;
+    const rows=LOG.slice(-15).reverse();
+    $("logBody").innerHTML=rows.length?rows.map(r=>`<tr><td>${r.no}</td><td>${new Date(r.time).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>${r.gender||"-"}</td><td>${r.age||"-"}</td><td>${r.party||"-"}</td><td>${r.rand.toFixed(4)}</td><td>${r.lineA.toFixed(2)}</td><td>${r.lineB.toFixed(2)}</td><td>${PRIZE[r.result].tag}</td></tr>`).join("")
+      :`<tr><td colspan="9" style="color:var(--foam-dim)">まだ抽選はありません。くじ引き画面で1回引くとここに表示されます。</td></tr>`;
+  }
+  function renderSound(){$("soundOn").checked=S.sound.on;$("soundVol").value=S.sound.vol}
+  $("soundOn").addEventListener("change",e=>{S.sound.on=e.target.checked;saveSettings()});
+  $("soundVol").addEventListener("input",e=>{S.sound.vol=parseFloat(e.target.value);saveSettings()});
+  let testing=false;
+  [["testA","A"],["testB","B"],["testN","N"]].forEach(([id,r])=>$(id).addEventListener("click",()=>{
+    if(testing)return;
+    if(!S.sound.on){toast("「音を鳴らす」をオンにしてください");return}
+    testing=true;drumroll(3);setTimeout(()=>{resultSound(r);testing=false},3000);
+  }));
+  function renderAdmin(){renderBase();renderBonus();renderSimSels();renderSim();renderLog();renderSound();renderDir()}
+
+  // CSV
+  function toCSV(){
+    const head=["No","日時","性別","年代","来場区分","回答数","乱数","A賞ライン","B賞ライン","A賞確率","B賞確率","基本A賞ライン","基本B賞ライン","結果"];
+    const esc=v=>{v=String(v??"");return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
+    const lines=LOG.map(r=>{
+      const d=new Date(r.time),p=n=>String(n).padStart(2,"0");
+      const ts=`${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+      return [r.no,ts,r.gender||"未回答",r.age||"未回答",r.party||"未回答",r.answered,r.rand,r.lineA,r.lineB,r.probA,r.probB,r.baseA,r.baseB,PRIZE[r.result].label].map(esc).join(",");
+    });
+    return "﻿"+[head.join(",")].concat(lines).join("\r\n");
+  }
+  async function saveFile(name,text){
+    if(window.claude&&typeof window.claude.use==="function"){
+      try{
+        const dl=await window.claude.use("downloads");
+        if(dl){await dl.save({filename:name,data:text});toast("保存しました");return}
+      }catch(e){
+        if(e&&e.code==="declined"){toast("保存をキャンセルしました");return}
+        if(e&&e.code==="rate_limited"){toast("少し待ってからもう一度押してください");return}
+      }
+    }
+    try{
+      const url=URL.createObjectURL(new Blob([text],{type:"text/csv"}));
+      const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+    }catch(e){toast("この画面ではダウンロードできません")}
+  }
+  $("dlBtn").onclick=()=>{
+    if(!LOG.length){toast("ログがまだありません");return}
+    const d=new Date(),p=n=>String(n).padStart(2,"0");
+    saveFile(`colakuji_log_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.csv`,toCSV());
+  };
+  $("clearBtn").onclick=()=>{$("clearConfirm").hidden=!$("clearConfirm").hidden};
+  $("clearConfirm").onclick=async()=>{
+    // 消去前に指定フォルダへバックアップを残す
+    if(LOG.length&&dirHandle&&dirReady){const d=new Date(),p=n=>String(n).padStart(2,"0");
+      await writeToDir(`colakuji_log_backup_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.csv`,toCSV())}
+    LOG=[];store(LKEY,LOG);autoSave();$("clearConfirm").hidden=true;renderLog();toast("ログを消去しました")};
+  $("pinSave").onclick=()=>{
+    const v=normPin($("newPin").value);
+    if(!/^\d{4,8}$/.test(v)){toast("4〜8桁の数字にしてください");return}
+    S.pin=v;saveSettings();$("newPin").value="";toast("暗証番号を変更しました");
+  };
+  $("resetSettings").onclick=()=>{const pin=S.pin,snd=S.sound;S=clone(DEFAULTS);S.pin=pin;S.sound=snd;saveSettings();renderAdmin();toast("確率を初期値に戻しました")};
+
+  // ---------- 保存先フォルダ（File System Access API） ----------
+  let dirHandle=null,dirReady=false;
+  const canPick=typeof window.showDirectoryPicker==="function";
+  function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("colaKuji",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+  async function idbSet(k,v){try{const db=await idb();await new Promise((res,rej)=>{const tx=db.transaction("kv","readwrite");v===undefined?tx.objectStore("kv").delete(k):tx.objectStore("kv").put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}catch(e){}}
+  async function idbGet(k){try{const db=await idb();return await new Promise((res,rej)=>{const r=db.transaction("kv").objectStore("kv").get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}catch(e){return null}}
+  function renderDir(msg){
+    if(!$("dirStatus"))return;
+    if(!canPick){$("dirStatus").textContent="このブラウザでは使えません。ChromeまたはEdgeで開いてください。";$("dirPick").hidden=true;return}
+    $("dirResume").hidden=!(dirHandle&&!dirReady);$("dirClear").hidden=!dirHandle;
+    $("dirStatus").textContent=msg||(!dirHandle?"未設定（自動保存していません）":dirReady?`「${dirHandle.name}」に自動保存中`:`「${dirHandle.name}」：ブラウザを開き直したため、「保存を再開する」を押してください`);
+  }
+  async function writeToDir(name,text){
+    try{const fh=await dirHandle.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(text);await w.close();return true}
+    catch(e){dirReady=false;renderDir("保存に失敗しました。フォルダがあるか（USBが外れていないか）確認して、もう一度選んでください");toast("自動保存に失敗しました");return false}
+  }
+  let saving=Promise.resolve();
+  function autoSave(){if(!dirHandle||!dirReady)return;saving=saving.then(()=>writeToDir("colakuji_log.csv",toCSV()))}
+  if(canPick){
+    $("dirPick").onclick=async()=>{
+      try{
+        const h=await window.showDirectoryPicker({id:"colakuji",mode:"readwrite"});
+        dirHandle=h;dirReady=true;await idbSet("dir",h);
+        if(await writeToDir("colakuji_log.csv",toCSV())){renderDir();toast("保存先を設定しました")}
+      }catch(e){if(e&&e.name!=="AbortError")renderDir("この画面ではフォルダを選べません。ブラウザで直接開いてください")}
+    };
+    $("dirResume").onclick=async()=>{
+      try{if(await dirHandle.requestPermission({mode:"readwrite"})==="granted"){dirReady=true;autoSave();renderDir();toast("自動保存を再開しました")}}catch(e){renderDir("再開できませんでした。フォルダを選び直してください")}
+    };
+    $("dirClear").onclick=async()=>{dirHandle=null;dirReady=false;await idbSet("dir",undefined);renderDir()};
+    idbGet("dir").then(async h=>{
+      if(!h)return renderDir();
+      dirHandle=h;
+      try{dirReady=(await h.queryPermission({mode:"readwrite"}))==="granted"}catch(e){dirReady=false}
+      renderDir();
+      if(!dirReady)toast("自動保存が止まっています。設定画面で「保存を再開する」を押してください");
+    });
+  }else{renderDir()}
+
+  let tt;
+  function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2400)}
+
+  buildQuestions();renderToday();
+  if(!storageOk)toast("この端末では記録が保存されません。ブラウザの設定を確認してください");
+})();
+</script>
+</body></html>
